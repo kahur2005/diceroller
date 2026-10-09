@@ -1,0 +1,26 @@
+package com.example.diceroller.ui.theme
+
+import androidx.compose.ui.graphics.Color
+
+val SkyTop = Color(0xFF6BB7D6)
+val SkyHorizon = Color(0xFFE7F4C8)
+val GrassLight = Color(0xFF62C46E)
+val GrassDark = Color(0xFF2F8A44)
+val TreeDark = Color(0xFF1F5C32)
+val TreeLight = Color(0xFF3D9A52)
+val Asphalt = Color(0xFF3C404A)
+val AsphaltDark = Color(0xFF2A2D35)
+val LanePaint = Color(0xFFF6E27A)
+val Curb = Color(0xFFD9CDB6)
+val Crosswalk = Color(0xFFF7F4EA)
+val ChickenYellow = Color(0xFFFFD23F)
+val ChickenShade = Color(0xFFE0A81A)
+val Beak = Color(0xFFFF8A3D)
+val Comb = Color(0xFFE23D3D)
+val Felt = Color(0xFF1A2B22)
+val FeltDeep = Color(0xFF101C16)
+val Ticket = Color(0xFFF4E7C8)
+val GoGreen = Color(0xFF21C35E)
+val CashAmber = Color(0xFFE8B84A)
+val Ink = Color(0xFF142018)
+val Booth = Color(0xFF24362C)
