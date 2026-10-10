@@ -1,7 +1,11 @@
 package com.example.diceroller.ui
 
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutLinearInEasing
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearOutSlowInEasing
+import androidx.compose.animation.core.keyframes
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -50,11 +54,13 @@ import com.example.diceroller.game.multiplierTable
 import com.example.diceroller.game.payoutFor
 import com.example.diceroller.ui.theme.Booth
 import com.example.diceroller.ui.theme.CashAmber
-import com.example.diceroller.ui.theme.ChickenYellow
-import com.example.diceroller.ui.theme.FeltDeep
 import com.example.diceroller.ui.theme.GoGreen
 import com.example.diceroller.ui.theme.Ink
+import com.example.diceroller.ui.theme.NightDeep
+import com.example.diceroller.ui.theme.NightInk
+import com.example.diceroller.ui.theme.Sodium
 import com.example.diceroller.ui.theme.Ticket
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.random.Random
 
@@ -126,16 +132,36 @@ fun ChickenRoadScreen(modifier: Modifier = Modifier) {
         val targetLane = if (result is HopResult.Safe) current.stepsCleared else chickenLane + 1
         scope.launch {
             hop.snapTo(0f)
-            hop.animateTo(1f, tween(420, easing = FastOutSlowInEasing)) {
+            hop.animateTo(
+                1f,
+                keyframes {
+                    durationMillis = 560
+                    0f at 0
+                    0.10f at 100 using FastOutLinearInEasing
+                    0.62f at 300 using FastOutSlowInEasing
+                    1f at 560 using LinearOutSlowInEasing
+                }
+            ) {
                 hopProgress = value
             }
             if (result is HopResult.Hit) {
                 hitLane = targetLane
                 message = "Hit by a car. Bet lost."
                 slam.snapTo(0f)
-                slam.animateTo(1f, tween(240)) { carHitProgress = value }
                 flatten.snapTo(0f)
-                flatten.animateTo(1f, tween(180)) { squash = value }
+                val slamJob = launch {
+                    slam.animateTo(1f, tween(340, easing = FastOutLinearInEasing)) {
+                        carHitProgress = value
+                    }
+                }
+                delay(120)
+                flatten.animateTo(
+                    1f,
+                    spring(dampingRatio = 0.42f, stiffness = 520f)
+                ) {
+                    squash = value
+                }
+                slamJob.join()
                 hopProgress = 1f
             } else {
                 chickenLane = current.stepsCleared
@@ -163,7 +189,7 @@ fun ChickenRoadScreen(modifier: Modifier = Modifier) {
         modifier = modifier
             .fillMaxSize()
             .background(
-                Brush.verticalGradient(listOf(Color(0xFF14241A), FeltDeep))
+                Brush.verticalGradient(listOf(NightInk, NightDeep))
             )
     ) {
         TopBar(
@@ -179,10 +205,10 @@ fun ChickenRoadScreen(modifier: Modifier = Modifier) {
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth()
-                .padding(horizontal = 8.dp)
-                .shadow(12.dp, RoundedCornerShape(18.dp))
-                .clip(RoundedCornerShape(18.dp))
-                .border(2.dp, Color(0xFF3A5A44), RoundedCornerShape(18.dp))
+                .padding(horizontal = 6.dp)
+                .shadow(18.dp, RoundedCornerShape(22.dp), ambientColor = Color.Black.copy(alpha = 0.55f))
+                .clip(RoundedCornerShape(22.dp))
+                .border(1.dp, Color(0xFF3A4254), RoundedCornerShape(22.dp))
         ) {
             RoadPlayfield(
                 maxSteps = difficulty.maxSteps,
@@ -198,8 +224,9 @@ fun ChickenRoadScreen(modifier: Modifier = Modifier) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .padding(horizontal = 16.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Text(
                 text = message,
@@ -212,15 +239,16 @@ fun ChickenRoadScreen(modifier: Modifier = Modifier) {
             )
             Box(
                 modifier = Modifier
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(ChickenYellow)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(Color(0xFF1A1C22))
+                    .border(1.dp, Sodium.copy(alpha = 0.7f), RoundedCornerShape(8.dp))
                     .padding(horizontal = 10.dp, vertical = 4.dp)
             ) {
                 Text(
                     text = formatMultiplier(liveMultiplier),
-                    color = Ink,
+                    color = Sodium,
                     fontSize = 14.sp,
-                    fontWeight = FontWeight.Black
+                    fontWeight = FontWeight.Bold
                 )
             }
         }
@@ -262,20 +290,21 @@ private fun TopBar(balance: Int, onDeposit: (Int) -> Unit) {
         Column {
             Text(
                 text = "Crossing",
-                color = ChickenYellow,
-                fontSize = 26.sp,
+                color = Ticket,
+                fontSize = 28.sp,
                 fontWeight = FontWeight.Black,
                 fontFamily = FontFamily.Serif
             )
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(20.dp))
-                    .background(Ticket)
+                    .background(Color(0xFF2A2418))
+                    .border(1.dp, Sodium.copy(alpha = 0.45f), RoundedCornerShape(20.dp))
                     .padding(horizontal = 10.dp, vertical = 4.dp)
             ) {
                 Text(
                     text = "${formatChips(balance)} chips",
-                    color = Ink,
+                    color = Sodium,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.testTag("balance")
@@ -297,7 +326,7 @@ private fun DepositChip(label: String, tag: String, onClick: () -> Unit) {
             .testTag(tag)
             .clip(RoundedCornerShape(14.dp))
             .background(Booth)
-            .border(1.dp, Color(0xFF4A6A56), RoundedCornerShape(14.dp))
+            .border(1.dp, Color(0xFF3A4254), RoundedCornerShape(14.dp))
             .clickable(onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 8.dp)
     ) {
@@ -334,7 +363,7 @@ private fun ControlTray(
                     modifier = Modifier
                         .weight(1f)
                         .clip(RoundedCornerShape(10.dp))
-                        .background(if (selected) ChickenYellow else Color(0xFF1A2C22))
+                        .background(if (selected) Sodium else Color(0xFF141824))
                         .clickable(enabled = !inRound && !busy) { onDifficulty(level) }
                         .padding(vertical = 8.dp),
                     contentAlignment = Alignment.Center
@@ -368,8 +397,8 @@ private fun ControlTray(
                 colors = ButtonDefaults.buttonColors(
                     containerColor = CashAmber,
                     contentColor = Ink,
-                    disabledContainerColor = Color(0xFF3A4A32),
-                    disabledContentColor = Color(0xFF8A9A82)
+                    disabledContainerColor = Color(0xFF2A3140),
+                    disabledContentColor = Color(0xFF6A7384)
                 )
             ) {
                 val cashLabel = if (canCash && round != null) {
@@ -411,7 +440,7 @@ private fun Stepper(enabled: Boolean, onClick: () -> Unit, label: String) {
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(10.dp))
-            .background(Color(0xFF1A2C22))
+            .background(Color(0xFF141824))
             .clickable(enabled = enabled, onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 10.dp)
     ) {

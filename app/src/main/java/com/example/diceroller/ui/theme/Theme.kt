@@ -8,9 +8,9 @@ import androidx.compose.ui.graphics.Color
 private val CrossingColors = darkColorScheme(
     primary = GoGreen,
     secondary = CashAmber,
-    tertiary = ChickenYellow,
-    background = FeltDeep,
-    surface = Felt,
+    tertiary = Sodium,
+    background = NightDeep,
+    surface = Booth,
     onPrimary = Color(0xFF062113),
     onSecondary = Color(0xFF2A1D00),
     onBackground = Ticket,
