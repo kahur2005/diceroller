@@ -2,6 +2,18 @@ package com.example.diceroller.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
+val Screen = Color(0xFF0E1520)
+val Panel = Color(0xFF17202E)
+val Field = Color(0xFF101820)
+val Road = Color(0xFF1B2838)
+val RoadAlt = Color(0xFF203044)
+val Paper = Color(0xFFF3F6FA)
+val Muted = Color(0xFF93A0B0)
+val GoBright = Color(0xFF2FE56A)
+val CashFace = Color(0xFF323C4C)
+val CashInk = Color(0xFF8E99A8)
+val Pill = Color(0xFF3A4556)
+val Sidewalk = Color(0xFF141C28)
 val NightInk = Color(0xFF12151C)
 val NightDeep = Color(0xFF0B0D12)
 val DuskHigh = Color(0xFF1E2740)

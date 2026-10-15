@@ -19,12 +19,17 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -34,12 +39,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.diceroller.game.Difficulty
@@ -51,27 +54,37 @@ import com.example.diceroller.game.Wallet
 import com.example.diceroller.game.formatChips
 import com.example.diceroller.game.formatMultiplier
 import com.example.diceroller.game.multiplierTable
-import com.example.diceroller.game.payoutFor
-import com.example.diceroller.ui.theme.Booth
-import com.example.diceroller.ui.theme.CashAmber
-import com.example.diceroller.ui.theme.GoGreen
+import com.example.diceroller.ui.theme.CashFace
+import com.example.diceroller.ui.theme.CashInk
+import com.example.diceroller.ui.theme.Field
+import com.example.diceroller.ui.theme.GoBright
 import com.example.diceroller.ui.theme.Ink
-import com.example.diceroller.ui.theme.NightDeep
-import com.example.diceroller.ui.theme.NightInk
-import com.example.diceroller.ui.theme.Sodium
-import com.example.diceroller.ui.theme.Ticket
+import com.example.diceroller.ui.theme.Muted
+import com.example.diceroller.ui.theme.Panel
+import com.example.diceroller.ui.theme.Paper
+import com.example.diceroller.ui.theme.Road
+import com.example.diceroller.ui.theme.Screen
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import java.util.Locale
 import kotlin.random.Random
+
+private val FieldShape = RoundedCornerShape(10.dp)
+private val FieldLine = Color(0xFF2A3544)
+private val ChipFace = Color(0xFF2C384A)
 
 @Composable
 fun ChickenRoadScreen(modifier: Modifier = Modifier) {
     val session = remember { GameSession(Wallet(100)) }
     var tick by remember { mutableIntStateOf(0) }
     var bet by remember { mutableIntStateOf(10) }
-    var difficulty by remember { mutableStateOf(Difficulty.EASY) }
+    var difficulty by remember { mutableStateOf(Difficulty.MEDIUM) }
+    var auto by remember { mutableStateOf(false) }
+    var autoRunning by remember { mutableStateOf(false) }
+    var runId by remember { mutableIntStateOf(0) }
     var round by remember { mutableStateOf<Round?>(null) }
-    var message by remember { mutableStateOf("Add chips, lock a bet, then send the chicken right.") }
+    var message by remember { mutableStateOf("Set a bet, then press Go.") }
     var busy by remember { mutableStateOf(false) }
     var chickenLane by remember { mutableIntStateOf(0) }
     var hopProgress by remember { mutableStateOf(0f) }
@@ -87,12 +100,7 @@ fun ChickenRoadScreen(modifier: Modifier = Modifier) {
     val active = round
     val table = active?.multipliers ?: multiplierTable(difficulty)
     val inRound = active?.status == RoundStatus.ACTIVE
-    val roundOver = active != null && active.status != RoundStatus.ACTIVE
-    val liveMultiplier = when {
-        active?.status == RoundStatus.ACTIVE && active.stepsCleared > 0 -> active.currentMultiplier
-        active?.status == RoundStatus.ACTIVE -> active.nextLaneMultiplier() ?: table.first()
-        else -> table.first()
-    }
+    val locked = inRound || busy || autoRunning
 
     fun bump() {
         tick++
@@ -111,44 +119,28 @@ fun ChickenRoadScreen(modifier: Modifier = Modifier) {
         }
     }
 
-    fun placeOrReset() {
-        if (busy) return
-        if (session.wallet.balance < bet) {
-            message = "Not enough chips. Add more to bet ${formatChips(bet)}."
-            bump()
-            return
-        }
-        resetBoard()
-        round = session.placeBet(bet, difficulty, Random.Default)
-        message = "Bet locked. Press Go — the chicken hops right."
-        bump()
-    }
-
-    fun go() {
-        val current = round ?: return
-        if (busy || current.status != RoundStatus.ACTIVE) return
-        busy = true
+    suspend fun animateHop(current: Round) {
         val result = current.hop()
-        val targetLane = if (result is HopResult.Safe) current.stepsCleared else chickenLane + 1
-        scope.launch {
-            hop.snapTo(0f)
-            hop.animateTo(
-                1f,
-                keyframes {
-                    durationMillis = 560
-                    0f at 0
-                    0.10f at 100 using FastOutLinearInEasing
-                    0.62f at 300 using FastOutSlowInEasing
-                    1f at 560 using LinearOutSlowInEasing
-                }
-            ) {
-                hopProgress = value
+        val standing = chickenLane
+        hop.snapTo(0f)
+        hop.animateTo(
+            1f,
+            keyframes {
+                durationMillis = 560
+                0f at 0
+                0.10f at 100 using FastOutLinearInEasing
+                0.62f at 300 using FastOutSlowInEasing
+                1f at 560 using LinearOutSlowInEasing
             }
-            if (result is HopResult.Hit) {
-                hitLane = targetLane
-                message = "Hit by a car. Bet lost."
-                slam.snapTo(0f)
-                flatten.snapTo(0f)
+        ) {
+            hopProgress = value
+        }
+        if (result is HopResult.Hit) {
+            hitLane = standing + 1
+            message = "Hit by a car. Bet lost."
+            slam.snapTo(0f)
+            flatten.snapTo(0f)
+            coroutineScope {
                 val slamJob = launch {
                     slam.animateTo(1f, tween(340, easing = FastOutLinearInEasing)) {
                         carHitProgress = value
@@ -162,16 +154,55 @@ fun ChickenRoadScreen(modifier: Modifier = Modifier) {
                     squash = value
                 }
                 slamJob.join()
-                hopProgress = 1f
-            } else {
-                chickenLane = current.stepsCleared
-                hopProgress = 0f
-                hop.snapTo(0f)
-                message = when (current.status) {
-                    RoundStatus.CLEARED -> "Made it across. Paid ${formatChips(current.payout)} chips."
-                    else -> "Safe at ${formatMultiplier(current.currentMultiplier)}. Cash out or keep going."
-                }
             }
+            hopProgress = 1f
+        } else {
+            chickenLane = current.stepsCleared
+            hopProgress = 0f
+            hop.snapTo(0f)
+            message = when (current.status) {
+                RoundStatus.CLEARED -> "Made it across. Paid ${formatChips(current.payout)} chips."
+                else -> "Safe at ${formatMultiplier(current.currentMultiplier)}. Cash out or keep going."
+            }
+        }
+    }
+
+    fun placeOrReset() {
+        if (busy || autoRunning) return
+        if (session.wallet.balance < bet) {
+            message = "Not enough chips. Add more to bet ${formatChips(bet)}."
+            bump()
+            return
+        }
+        val id = ++runId
+        resetBoard()
+        round = session.placeBet(bet, difficulty, Random.Default)
+        message = if (auto) "Bet locked. Auto is running." else "Bet locked. Press Go — the chicken hops right."
+        bump()
+        if (!auto) return
+        autoRunning = true
+        scope.launch {
+            delay(420)
+            while (runId == id) {
+                val live = round
+                if (live == null || live.status != RoundStatus.ACTIVE) break
+                busy = true
+                animateHop(live)
+                busy = false
+                bump()
+                if (live.status != RoundStatus.ACTIVE) break
+                delay(700)
+            }
+            if (runId == id) autoRunning = false
+        }
+    }
+
+    fun go() {
+        val current = round ?: return
+        if (busy || autoRunning || current.status != RoundStatus.ACTIVE) return
+        busy = true
+        scope.launch {
+            animateHop(current)
             busy = false
             bump()
         }
@@ -180,6 +211,8 @@ fun ChickenRoadScreen(modifier: Modifier = Modifier) {
     fun cashOut() {
         val current = round ?: return
         if (busy || current.status != RoundStatus.ACTIVE || current.stepsCleared == 0) return
+        runId++
+        autoRunning = false
         val paid = current.cashOut()
         message = "Cashed out ${formatChips(paid)} chips."
         bump()
@@ -188,27 +221,16 @@ fun ChickenRoadScreen(modifier: Modifier = Modifier) {
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(
-                Brush.verticalGradient(listOf(NightInk, NightDeep))
-            )
+            .background(Screen)
     ) {
-        TopBar(
-            balance = session.wallet.balance,
-            onDeposit = { amount ->
-                session.wallet.deposit(amount)
-                message = "Deposited ${formatChips(amount)} chips."
-                bump()
-            }
-        )
-
         Box(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth()
-                .padding(horizontal = 6.dp)
-                .shadow(18.dp, RoundedCornerShape(22.dp), ambientColor = Color.Black.copy(alpha = 0.55f))
-                .clip(RoundedCornerShape(22.dp))
-                .border(1.dp, Color(0xFF3A4254), RoundedCornerShape(22.dp))
+                .padding(start = 12.dp, end = 12.dp, top = 10.dp, bottom = 8.dp)
+                .clip(RoundedCornerShape(16.dp))
+                .background(Road)
+                .border(1.dp, Color(0xFF314155), RoundedCornerShape(16.dp))
         ) {
             RoadPlayfield(
                 maxSteps = difficulty.maxSteps,
@@ -221,55 +243,42 @@ fun ChickenRoadScreen(modifier: Modifier = Modifier) {
             )
         }
 
-        Row(
+        Text(
+            text = message,
+            color = Muted,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Medium,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Text(
-                text = message,
-                color = Ticket,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Medium,
-                modifier = Modifier
-                    .weight(1f)
-                    .testTag("status")
-            )
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(Color(0xFF1A1C22))
-                    .border(1.dp, Sodium.copy(alpha = 0.7f), RoundedCornerShape(8.dp))
-                    .padding(horizontal = 10.dp, vertical = 4.dp)
-            ) {
-                Text(
-                    text = formatMultiplier(liveMultiplier),
-                    color = Sodium,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-        }
+                .padding(horizontal = 16.dp, vertical = 4.dp)
+                .testTag("status")
+        )
 
         ControlTray(
             bet = bet,
+            balance = session.wallet.balance,
             difficulty = difficulty,
-            round = active,
+            auto = auto,
             inRound = inRound,
-            roundOver = roundOver,
-            busy = busy,
-            canGo = inRound && !busy,
+            locked = locked,
+            canGo = !busy && !autoRunning,
             canCash = inRound && !busy && (active?.stepsCleared ?: 0) > 0,
             onBetChange = { bet = it.coerceAtLeast(1) },
             onDifficulty = {
-                if (!inRound) {
+                if (!locked) {
                     difficulty = it
                     resetBoard()
                     round = null
                     bump()
                 }
+            },
+            onAuto = { if (!locked) auto = it },
+            onDeposit = { amount ->
+                session.wallet.deposit(amount)
+                message = "Deposited ${formatChips(amount)} chips."
+                bump()
             },
             onBet = { placeOrReset() },
             onGo = { go() },
@@ -279,73 +288,19 @@ fun ChickenRoadScreen(modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun TopBar(balance: Int, onDeposit: (Int) -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        Column {
-            Text(
-                text = "Crossing",
-                color = Ticket,
-                fontSize = 28.sp,
-                fontWeight = FontWeight.Black,
-                fontFamily = FontFamily.Serif
-            )
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(Color(0xFF2A2418))
-                    .border(1.dp, Sodium.copy(alpha = 0.45f), RoundedCornerShape(20.dp))
-                    .padding(horizontal = 10.dp, vertical = 4.dp)
-            ) {
-                Text(
-                    text = "${formatChips(balance)} chips",
-                    color = Sodium,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.testTag("balance")
-                )
-            }
-        }
-        Row {
-            DepositChip(label = "+50", tag = "deposit_50") { onDeposit(50) }
-            Spacer(Modifier.width(8.dp))
-            DepositChip(label = "+100", tag = "deposit_100") { onDeposit(100) }
-        }
-    }
-}
-
-@Composable
-private fun DepositChip(label: String, tag: String, onClick: () -> Unit) {
-    Box(
-        modifier = Modifier
-            .testTag(tag)
-            .clip(RoundedCornerShape(14.dp))
-            .background(Booth)
-            .border(1.dp, Color(0xFF3A4254), RoundedCornerShape(14.dp))
-            .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 8.dp)
-    ) {
-        Text(label, color = Ticket, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-    }
-}
-
-@Composable
 private fun ControlTray(
     bet: Int,
+    balance: Int,
     difficulty: Difficulty,
-    round: Round?,
+    auto: Boolean,
     inRound: Boolean,
-    roundOver: Boolean,
-    busy: Boolean,
+    locked: Boolean,
     canGo: Boolean,
     canCash: Boolean,
     onBetChange: (Int) -> Unit,
     onDifficulty: (Difficulty) -> Unit,
+    onAuto: (Boolean) -> Unit,
+    onDeposit: (Int) -> Unit,
     onBet: () -> Unit,
     onGo: () -> Unit,
     onCashOut: () -> Unit
@@ -353,97 +308,258 @@ private fun ControlTray(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Booth)
-            .padding(horizontal = 14.dp, vertical = 12.dp)
+            .background(Panel)
+            .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 14.dp)
     ) {
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
-            Difficulty.entries.forEach { level ->
-                val selected = difficulty == level
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(if (selected) Sodium else Color(0xFF141824))
-                        .clickable(enabled = !inRound && !busy) { onDifficulty(level) }
-                        .padding(vertical = 8.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = level.label,
-                        color = if (selected) Ink else Ticket,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 12.sp
-                    )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "Bet Amount",
+                color = Paper,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Medium
+            )
+            Spacer(Modifier.weight(1f))
+            Column(horizontalAlignment = Alignment.End) {
+                Text(
+                    text = formatBalance(balance),
+                    color = Paper,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.testTag("balance")
+                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    DepositChip(label = "+50", tag = "deposit_50") { onDeposit(50) }
+                    DepositChip(label = "+100", tag = "deposit_100") { onDeposit(100) }
                 }
             }
         }
 
-        Spacer(Modifier.height(10.dp))
+        Spacer(Modifier.height(1.dp))
 
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Stepper(enabled = !inRound && !busy, onClick = { onBetChange(bet / 2) }, label = "½")
+            ModeChip(label = "Manual", selected = !auto, enabled = !locked) { onAuto(false) }
             Spacer(Modifier.width(8.dp))
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("Bet", color = Ticket.copy(alpha = 0.7f), fontSize = 11.sp)
-                Text(formatChips(bet), color = Ticket, fontWeight = FontWeight.Black, fontSize = 22.sp)
-            }
-            Spacer(Modifier.width(8.dp))
-            Stepper(enabled = !inRound && !busy, onClick = { onBetChange(bet * 2) }, label = "2×")
-            Spacer(Modifier.weight(1f))
-            Button(
-                onClick = onCashOut,
-                enabled = canCash,
-                modifier = Modifier.testTag("cash_out"),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = CashAmber,
-                    contentColor = Ink,
-                    disabledContainerColor = Color(0xFF2A3140),
-                    disabledContentColor = Color(0xFF6A7384)
-                )
+            ModeChip(label = "Auto", selected = auto, enabled = !locked) { onAuto(true) }
+        }
+
+        Spacer(Modifier.height(1.dp))
+
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                modifier = Modifier
+                    .weight(1f)
+                    .height(48.dp)
+                    .clip(FieldShape)
+                    .background(Field)
+                    .border(1.dp, FieldLine, FieldShape)
+                    .padding(horizontal = 14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                val cashLabel = if (canCash && round != null) {
-                    "Cash ${formatChips(payoutFor(round.bet, round.currentMultiplier))}"
-                } else {
-                    "Cash out"
-                }
-                Text(cashLabel, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                Text(
+                    text = String.format(Locale.US, "%.2f", bet.toDouble()),
+                    color = Paper,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Medium
+                )
+                Coin()
             }
+            Spacer(Modifier.width(10.dp))
+            Stepper(enabled = !locked, label = "½") { onBetChange(bet / 2) }
+            Spacer(Modifier.width(8.dp))
+            Stepper(enabled = !locked, label = "2×") { onBetChange(bet * 2) }
         }
 
         Spacer(Modifier.height(10.dp))
 
-        val primaryLabel = when {
-            roundOver -> "New bet"
-            inRound -> "Go"
-            else -> "Bet"
-        }
+        DifficultyMenu(
+            difficulty = difficulty,
+            enabled = !locked,
+            onDifficulty = onDifficulty
+        )
+
+        Spacer(Modifier.height(12.dp))
+
         Button(
             onClick = { if (inRound) onGo() else onBet() },
-            enabled = !busy,
+            enabled = canGo,
             colors = ButtonDefaults.buttonColors(
-                containerColor = GoGreen,
-                contentColor = Ink
+                containerColor = GoBright,
+                contentColor = Paper,
+                disabledContainerColor = GoBright.copy(alpha = 0.66f),
+                disabledContentColor = Paper.copy(alpha = 0.66f)
+            ),
+            elevation = ButtonDefaults.buttonElevation(
+                defaultElevation = 0.dp,
+                pressedElevation = 0.dp,
+                disabledElevation = 0.dp
             ),
             modifier = Modifier
                 .fillMaxWidth()
-                .height(56.dp)
+                .height(52.dp)
                 .testTag("primary_action"),
-            shape = RoundedCornerShape(16.dp)
+            shape = RoundedCornerShape(12.dp)
         ) {
-            Text(primaryLabel, fontWeight = FontWeight.Black, fontSize = 22.sp)
+            Text("Go", fontWeight = FontWeight.Bold, fontSize = 255.sp)
+        }
+
+        Spacer(Modifier.height(8.dp))
+
+        Button(
+            onClick = onCashOut,
+            enabled = canCash,
+            colors = ButtonDefaults.buttonColors(
+                containerColor = Paper,
+                contentColor = Ink,
+                disabledContainerColor = CashFace,
+                disabledContentColor = CashInk
+            ),
+            elevation = ButtonDefaults.buttonElevation(
+                defaultElevation = 0.dp,
+                pressedElevation = 0.dp,
+                disabledElevation = 0.dp
+            ),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(48.dp)
+                .testTag("cash_out"),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Text("Cash Out", fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
         }
     }
 }
 
 @Composable
-private fun Stepper(enabled: Boolean, onClick: () -> Unit, label: String) {
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(10.dp))
-            .background(Color(0xFF141824))
-            .clickable(enabled = enabled, onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 10.dp)
-    ) {
-        Text(label, color = Ticket, fontWeight = FontWeight.Bold)
+private fun DifficultyMenu(
+    difficulty: Difficulty,
+    enabled: Boolean,
+    onDifficulty: (Difficulty) -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+    LaunchedEffect(enabled) {
+        if (!enabled) expanded = false
+    }
+    Box(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(48.dp)
+                .clip(FieldShape)
+                .background(Field)
+                .border(1.dp, FieldLine, FieldShape)
+                .clickable(enabled = enabled) { expanded = true }
+                .padding(horizontal = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(
+                text = difficulty.label,
+                color = if (enabled) Paper else Muted,
+                fontSize = 15.sp
+            )
+            Text(text = "▾", color = Muted, fontSize = 14.sp)
+        }
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+            containerColor = Color(0xFF1C2636)
+        ) {
+            Difficulty.entries.forEach { level ->
+                DropdownMenuItem(
+                    text = {
+                        Text(
+                            text = level.label,
+                            color = if (level == difficulty) GoBright else Paper
+                        )
+                    },
+                    onClick = {
+                        onDifficulty(level)
+                        expanded = false
+                    }
+                )
+            }
+        }
     }
 }
+
+@Composable
+private fun ModeChip(
+    label: String,
+    selected: Boolean,
+    enabled: Boolean,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(8.dp))
+            .background(if (selected) ChipFace else Color.Transparent)
+            .clickable(enabled = enabled, onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 8.dp)
+    ) {
+        Text(
+            text = label,
+            color = if (selected) Paper else Muted,
+            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
+            fontSize = 14.sp
+        )
+    }
+}
+
+@Composable
+private fun DepositChip(label: String, tag: String, onClick: () -> Unit) {
+    Text(
+        text = label,
+        color = GoBright,
+        fontWeight = FontWeight.Bold,
+        fontSize = 12.sp,
+        modifier = Modifier
+            .testTag(tag)
+            .clip(RoundedCornerShape(6.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 6.dp, vertical = 2.dp)
+    )
+}
+
+@Composable
+private fun Coin() {
+    Box(
+        modifier = Modifier
+            .size(22.dp)
+            .clip(CircleShape)
+            .background(GoBright),
+        contentAlignment = Alignment.Center
+    ) {
+        Box(
+            modifier = Modifier
+                .size(12.dp)
+                .border(1.5.dp, Ink.copy(alpha = 0.00f), CircleShape)
+        )
+    }
+}
+
+@Composable
+private fun Stepper(enabled: Boolean, label: String, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(8.dp))
+            .clickable(enabled = enabled, onClick = onClick)
+            .padding(horizontal = 8.dp, vertical = 12.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = label,
+            color = if (enabled) Paper else Muted,
+            fontWeight = FontWeight.SemiBold,
+            fontSize = 15.sp
+        )
+    }
+}
+
+private fun formatBalance(amount: Int): String =
+    "Balance: $" + String.format(Locale.US, "%,.2f", amount.toDouble())

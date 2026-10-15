@@ -24,7 +24,7 @@ class CrossingUiTest {
             }
         }
 
-        compose.onNodeWithText("Crossing").assertExists()
+        compose.onNodeWithText("Bet Amount").assertExists()
         compose.onNodeWithTag("deposit_100").performClick()
         compose.waitForIdle()
         assertTrue(statusText().contains("Deposited"))

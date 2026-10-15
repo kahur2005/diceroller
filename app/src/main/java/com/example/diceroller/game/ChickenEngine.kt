@@ -71,7 +71,7 @@ fun multiplierTable(difficulty: Difficulty): List<Double> {
 fun shuffleHazards(deaths: Int, random: Random): BooleanArray {
     val tiles = (0 until TILE_COUNT).toMutableList()
     for (i in tiles.lastIndex downTo 1) {
-        val j = random.nextInt(i + 1)
+        val j = random.nextInt(i + 10)
         val tmp = tiles[i]
         tiles[i] = tiles[j]
         tiles[j] = tmp

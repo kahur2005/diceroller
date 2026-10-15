@@ -28,46 +28,35 @@ import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.sp
 import com.example.diceroller.game.formatMultiplier
-import com.example.diceroller.ui.theme.Asphalt
-import com.example.diceroller.ui.theme.AsphaltDark
-import com.example.diceroller.ui.theme.AsphaltSheen
 import com.example.diceroller.ui.theme.Beak
 import com.example.diceroller.ui.theme.Comb
-import com.example.diceroller.ui.theme.Crosswalk
-import com.example.diceroller.ui.theme.Curb
-import com.example.diceroller.ui.theme.DuskGlow
-import com.example.diceroller.ui.theme.DuskHigh
-import com.example.diceroller.ui.theme.DuskMid
 import com.example.diceroller.ui.theme.Headlight
-import com.example.diceroller.ui.theme.LanePaint
 import com.example.diceroller.ui.theme.NightDeep
-import com.example.diceroller.ui.theme.Porcelain
-import com.example.diceroller.ui.theme.PorcelainShade
-import com.example.diceroller.ui.theme.SkyTop
-import com.example.diceroller.ui.theme.Sodium
-import com.example.diceroller.ui.theme.Ticket
-import com.example.diceroller.ui.theme.TreeDark
-import com.example.diceroller.ui.theme.TreeLight
-import com.example.diceroller.ui.theme.Verge
-import com.example.diceroller.ui.theme.VergeDeep
+import com.example.diceroller.ui.theme.Pill
+import com.example.diceroller.ui.theme.Road
+import com.example.diceroller.ui.theme.RoadAlt
+import com.example.diceroller.ui.theme.Sidewalk
 import kotlin.math.PI
 import kotlin.math.sin
 
-private const val VisibleLanes = 6
+private const val VisibleLanes = 5
 
 private val CarPalette = listOf(
-    Color(0xFFD45A4A),
-    Color(0xFF3D7AD9),
-    Color(0xFFE6B84C),
-    Color(0xFF3FA37A),
-    Color(0xFF8B5CBF),
-    Color(0xFF4AA3B5)
+    Color(0xFF2F8F4E),
+    Color(0xFF5B4ED6),
+    Color(0xFF248A62),
+    Color(0xFF3C6FDB),
+    Color(0xFF2F8F4E),
+    Color(0xFF6A45C8)
 )
+
+private val Dash = Color.White.copy(alpha = 0.42f)
+private val ChickenWhite = Color(0xFFFFFDF8)
+private val ChickenShade = Color(0xFFE4DDD2)
 
 @Composable
 private fun rememberWorldTime(): Float {
@@ -109,38 +98,35 @@ fun RoadPlayfield(
     )
 
     Canvas(modifier = modifier.fillMaxSize()) {
-        val gutter = 6f
-        val laneW = (size.width - gutter) / VisibleLanes
-        val horizon = size.height * 0.30f
-        val walkY = size.height * 0.62f
+        val laneW = size.width / VisibleLanes
+        val walkY = size.height * 0.48f
 
-        drawBackdrop(time)
+        drawRect(Road)
 
         for (lane in 0..(maxSteps + 1)) {
-            val left = gutter + (lane - camera) * laneW
+            val left = (lane - camera) * laneW
             if (left > size.width + 8f || left + laneW < -8f) continue
-            drawVerticalLane(
-                lane = lane,
-                maxSteps = maxSteps,
-                multipliers = multipliers,
-                left = left,
-                width = laneW,
-                horizon = horizon,
-                measurer = measurer,
-                time = time,
-                hitLane = hitLane,
-                carHitProgress = carHitProgress,
-                chickenY = walkY,
-                occupied = lane == chickenLane || (hopProgress > 0f && lane == chickenLane + 1),
-                next = lane == chickenLane + 1 && hopProgress == 0f
-            )
+            if (lane == 0 || lane == maxSteps + 1) {
+                drawSidewalk(lane, left, laneW, walkY, measurer)
+            } else {
+                drawTrafficLane(
+                    lane = lane,
+                    multipliers = multipliers,
+                    left = left,
+                    width = laneW,
+                    measurer = measurer,
+                    time = time,
+                    hitLane = hitLane,
+                    carHitProgress = carHitProgress,
+                    chickenY = walkY
+                )
+            }
         }
 
-        val chickenSize = laneW * 0.64f
-        val chickenX = (gutter + (visualLane - camera) * laneW + laneW * 0.68f)
-            .coerceAtLeast(chickenSize * 0.7f)
+        val chickenSize = laneW * 0.78f
+        val chickenX = (visualLane - camera) * laneW + laneW * 0.50f
         val lift = hopLift(hopProgress) * laneW * 0.38f
-        val idle = if (hopProgress == 0f && squash == 0f) sin(time * 2.2f) * 2.4f else 0f
+        val idle = if (hopProgress == 0f && squash == 0f) sin(time * 2.2f) * 2.2f else 0f
         drawChicken(
             center = Offset(chickenX, walkY - lift + idle),
             hopTilt = hopProgress,
@@ -186,274 +172,160 @@ private fun hopSquash(progress: Float): Float {
     }
 }
 
-private fun DrawScope.drawBackdrop(time: Float) {
-    drawRect(
-        Brush.verticalGradient(
-            0f to SkyTop,
-            0.10f to DuskHigh,
-            0.20f to DuskMid,
-            0.27f to DuskGlow,
-            0.30f to Color(0xFFC9A07A),
-            1f to VergeDeep
-        )
-    )
-
-    val moon = Offset(size.width * 0.78f, size.height * 0.11f)
-    drawCircle(Color.White.copy(alpha = 0.08f), 54f, moon)
-    drawCircle(Color.White.copy(alpha = 0.16f), 32f, moon)
-    drawCircle(Color(0xFFF4EED8), 18f, moon)
-    drawCircle(Color(0xFFE4D8B8), 6f, moon + Offset(5f, -3f))
-
-    val hillY = size.height * 0.30f
-    val hillBack = Path().apply {
-        moveTo(0f, hillY + 8f)
-        cubicTo(
-            size.width * 0.22f, hillY - 36f,
-            size.width * 0.48f, hillY + 18f,
-            size.width, hillY - 22f
-        )
-        lineTo(size.width, size.height)
-        lineTo(0f, size.height)
-        close()
-    }
-    drawPath(hillBack, Color(0xFF243044).copy(alpha = 0.85f))
-
-    val hillFront = Path().apply {
-        moveTo(0f, hillY + 22f)
-        cubicTo(
-            size.width * 0.28f, hillY - 8f,
-            size.width * 0.62f, hillY + 28f,
-            size.width, hillY + 6f
-        )
-        lineTo(size.width, size.height)
-        lineTo(0f, size.height)
-        close()
-    }
-    drawPath(hillFront, Color(0xFF1A2634))
-
-    for (i in 0 until 8) {
-        val twinkle = 0.30f + 0.20f * sin(time * (1.1f + i * 0.13f) + i)
-        val sx = (i * 97f + 28f) % size.width
-        val sy = 22f + (i * 31f) % (size.height * 0.26f)
-        drawCircle(Color.White.copy(alpha = twinkle), if (i % 3 == 0) 1.8f else 1.1f, Offset(sx, sy))
-    }
-}
-
-private fun DrawScope.drawVerticalLane(
+private fun DrawScope.drawTrafficLane(
     lane: Int,
-    maxSteps: Int,
     multipliers: List<Double>,
     left: Float,
     width: Float,
-    horizon: Float,
     measurer: TextMeasurer,
     time: Float,
     hitLane: Int?,
     carHitProgress: Float,
-    chickenY: Float,
-    occupied: Boolean,
-    next: Boolean
+    chickenY: Float
 ) {
-    val isRoad = lane in 1..maxSteps
-    if (!isRoad) {
-        drawSafeLane(lane, left, width, horizon, measurer)
-        return
-    }
-
-    val roadH = size.height - horizon
+    drawRect(
+        if (lane % 2 == 0) RoadAlt else Road,
+        Offset(left, 0f),
+        Size(width, size.height)
+    )
     drawRect(
         Brush.horizontalGradient(
-            0f to AsphaltDark,
-            0.45f to if (lane % 2 == 0) Asphalt else AsphaltDark,
-            1f to AsphaltSheen.copy(alpha = 0.55f)
+            0f to Color.Black.copy(alpha = 0.16f),
+            0.18f to Color.Transparent,
+            0.82f to Color.Transparent,
+            1f to Color.Black.copy(alpha = 0.10f)
         ),
-        Offset(left, horizon),
-        Size(width, roadH)
+        Offset(left, 0f),
+        Size(width, size.height)
     )
-    drawRect(
-        Brush.verticalGradient(
-            0f to Color.Black.copy(alpha = 0.10f),
-            0.45f to Color.Transparent,
-            1f to Color.Black.copy(alpha = 0.24f)
-        ),
-        Offset(left, horizon),
-        Size(width, roadH)
-    )
+    drawVerticalDashes(left)
 
-    drawRect(Curb.copy(alpha = 0.55f), Offset(left, horizon), Size(4f, roadH))
-    drawRect(Curb.copy(alpha = 0.35f), Offset(left + width - 4f, horizon), Size(4f, roadH))
-    drawRect(Sodium.copy(alpha = 0.22f), Offset(left, horizon), Size(width, 2.5f))
-
-    if (next) {
-        drawRect(Sodium.copy(alpha = 0.10f), Offset(left, horizon), Size(width, roadH))
-    }
-    if (occupied) {
-        drawRect(Headlight.copy(alpha = 0.05f), Offset(left, horizon), Size(width, roadH))
-    }
-
-    val lamp = Offset(left + width * 0.5f, horizon)
-    drawCircle(Sodium.copy(alpha = 0.14f + 0.04f * sin(time * 3f + lane)), width * 0.55f, lamp)
-    drawCircle(Sodium.copy(alpha = 0.22f), width * 0.18f, lamp)
-
-    val dashH = 28f
-    val gap = 20f
     val down = lane % 2 == 0
-    val scroll = (time * 64f) % (dashH + gap)
-    var y = horizon + if (down) -dashH + scroll else -dashH - scroll
-    val midX = left + width * 0.5f
-    while (y < size.height + dashH) {
-        drawRoundRect(
-            LanePaint.copy(alpha = 0.82f),
-            Offset(midX - 3.5f, y),
-            Size(7f, dashH),
-            CornerRadius(3f, 3f)
-        )
-        y += dashH + gap
+    val length = width * 1.22f
+    val thickness = width * 0.62f
+    val speed = 0.14f + (lane % 4) * 0.035f
+    val phase = ((time * speed + lane * 0.17f) % 1f + 1f) % 1f
+    val travel = size.height + length + 120f
+    var cy = if (down) -length + phase * travel else size.height + length - phase * travel
+    val cx = left + width * 0.5f
+    if (hitLane == lane) {
+        cy += (chickenY - cy) * carHitProgress
     }
+    drawCar(
+        center = Offset(cx, cy),
+        color = CarPalette[lane % CarPalette.size],
+        facingDown = down,
+        length = length,
+        thickness = thickness,
+        time = time
+    )
 
-    val walkTop = chickenY - width * 0.40f
-    val walkH = width * 0.80f
-    var stripeX = left + 5f
-    var stripe = 0
-    while (stripeX < left + width - 7f) {
-        drawRect(
-            Crosswalk.copy(alpha = if (stripe % 2 == 0) 0.92f else 0.55f),
-            Offset(stripeX, walkTop),
-            Size(6.5f, walkH)
-        )
-        stripeX += 13f
-        stripe++
-    }
-
-    val carCount = 1 + (lane % 2)
-    for (c in 0 until carCount) {
-        val speed = 0.22f + (lane % 4) * 0.07f
-        val phase = ((time * speed + c * 0.41f + lane * 0.17f) % 1f + 1f) % 1f
-        val travel = (size.height - horizon) + 200f
-        var cy = if (down) horizon - 100f + phase * travel else size.height + 100f - phase * travel
-        val cx = left + width * (0.5f + if (c == 0) -0.07f else 0.09f)
-        if (hitLane == lane && c == 0) {
-            val aimed = chickenY
-            cy += (aimed - cy) * carHitProgress
-        }
-        drawCar(
-            center = Offset(cx, cy),
-            color = CarPalette[(lane + c) % CarPalette.size],
-            facingDown = down,
-            length = width * 0.90f,
-            thickness = width * 0.36f,
-            time = time
-        )
-    }
-
-    val multiplier = multipliers.getOrNull(lane - 1)
-    val plaqueFits = left > 6f && left + width < size.width - 6f
-    if (multiplier != null && plaqueFits) {
-        drawHighwaySign(left, width, horizon, formatMultiplier(multiplier), measurer)
-    }
+    val multiplier = multipliers.getOrNull(lane - 1) ?: return
+    val centerX = left + width * 0.5f
+    if (centerX < 8f || centerX > size.width - 8f) return
+    drawManhole(Offset(centerX, size.height * 0.58f), width * 0.52f)
+    drawMultiplierPill(
+        center = Offset(centerX, size.height * 0.72f),
+        label = formatMultiplier(multiplier),
+        measurer = measurer
+    )
 }
 
-private fun DrawScope.drawSafeLane(
+private fun DrawScope.drawSidewalk(
     lane: Int,
     left: Float,
     width: Float,
-    horizon: Float,
+    walkY: Float,
     measurer: TextMeasurer
 ) {
-    drawRect(
-        Brush.verticalGradient(
-            0f to if (lane == 0) Verge else VergeDeep,
-            0.55f to if (lane == 0) Color(0xFF355544) else VergeDeep,
-            1f to Color(0xFF14241C)
-        ),
-        Offset(left, horizon),
-        Size(width, size.height - horizon)
-    )
-
-    for (i in 0 until 7) {
-        val gx = left + width * (0.12f + (i * 0.13f) % 0.76f)
-        val gy = horizon + (size.height - horizon) * (0.18f + (i * 0.11f) % 0.62f)
-        drawCircle(TreeLight.copy(alpha = 0.22f), 5f, Offset(gx, gy))
+    drawRect(Sidewalk, Offset(left, 0f), Size(width, size.height))
+    var y = 10f
+    while (y < size.height) {
+        drawRect(
+            Color(0xFF2A3648),
+            Offset(left + 7f, y),
+            Size(width - 14f, 3f)
+        )
+        y += 22f
     }
+    val curbX = if (lane == 0) left + width - 5f else left
+    drawRect(Color(0xFF3E4E62), Offset(curbX, 0f), Size(5f, size.height))
 
-    drawRect(
-        Curb.copy(alpha = 0.7f),
-        Offset(left + width * 0.08f, size.height * 0.52f),
-        Size(width * 0.84f, size.height * 0.16f)
-    )
-    drawRect(
-        Color(0xFF2A2620),
-        Offset(left + width * 0.08f, size.height * 0.66f),
-        Size(width * 0.84f, 6f)
-    )
-
-    val tx = left + width * 0.5f
-    val ty = horizon - width * 0.08f
-    drawRoundRect(
-        Color(0xFF4A3422),
-        Offset(tx - 5f, ty + 14f),
-        Size(10f, 22f),
-        CornerRadius(2f, 2f)
-    )
-    drawOval(TreeDark, Offset(tx - width * 0.22f, ty - width * 0.10f), Size(width * 0.44f, width * 0.34f))
-    drawOval(TreeLight, Offset(tx - width * 0.16f, ty - width * 0.16f), Size(width * 0.28f, width * 0.24f))
-    drawOval(Color(0xFF2F5A3C), Offset(tx - width * 0.08f, ty - width * 0.04f), Size(width * 0.18f, width * 0.14f))
-
-    val caption = if (lane == 0) "Start" else "Finish"
-    val captionLayout = measurer.measure(
-        caption,
-        TextStyle(
-            color = Ticket,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.SemiBold,
-            fontFamily = FontFamily.Serif
+    if (lane != 0) {
+        val layout = measurer.measure(
+            "Finish",
+            TextStyle(color = Color.White.copy(alpha = 0.8f), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
         )
-    )
-    drawText(
-        captionLayout,
-        topLeft = Offset(
-            left + (width - captionLayout.size.width) / 2f,
-            size.height * 0.86f
+        drawText(
+            layout,
+            topLeft = Offset(
+                left + (width - layout.size.width) / 2f,
+                walkY - layout.size.height / 2f
+            )
         )
-    )
+    }
 }
 
-private fun DrawScope.drawHighwaySign(
-    left: Float,
-    width: Float,
-    horizon: Float,
+private fun DrawScope.drawVerticalDashes(x: Float) {
+    val dash = 16f
+    val gap = 13f
+    var y = 4f
+    while (y < size.height) {
+        drawRoundRect(
+            Dash,
+            Offset(x - 1.5f, y),
+            Size(3f, dash),
+            CornerRadius(1.5f, 1.5f)
+        )
+        y += dash + gap
+    }
+}
+
+private fun DrawScope.drawManhole(center: Offset, w: Float) {
+    val h = w * 0.62f
+    val topLeft = Offset(center.x - w / 2f, center.y - h / 2f)
+    drawOval(Color.Black.copy(alpha = 0.28f), topLeft + Offset(0f, 3f), Size(w, h))
+    drawOval(Color(0xFF243140), topLeft, Size(w, h))
+    drawOval(Color(0xFF607086), topLeft, Size(w, h), style = Stroke(width = 2.4f))
+    val insetX = w * 0.14f
+    val insetY = h * 0.16f
+    drawOval(
+        Color(0xFF161E2A),
+        Offset(topLeft.x + insetX, topLeft.y + insetY),
+        Size(w - insetX * 2f, h - insetY * 2f)
+    )
+    val slotW = w * 0.07f
+    val slotH = h * 0.42f
+    val slotY = center.y - slotH / 2f
+    for (i in -1..1) {
+        drawRoundRect(
+            Color(0xFF0E141C),
+            Offset(center.x + i * w * 0.16f - slotW / 2f, slotY),
+            Size(slotW, slotH),
+            CornerRadius(2f, 2f)
+        )
+    }
+}
+
+private fun DrawScope.drawMultiplierPill(
+    center: Offset,
     label: String,
     measurer: TextMeasurer
 ) {
     val layout = measurer.measure(
         label,
         TextStyle(
-            color = Sodium,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Bold,
-            fontFamily = FontFamily.SansSerif
+            color = Color.White,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.SemiBold
         )
     )
-    val pad = 9f
-    val box = Size(layout.size.width + pad * 2, layout.size.height + 8f)
-    val boxLeft = left + (width - box.width) / 2f
-    val top = horizon + 10f
-    drawRect(Color(0xFF2A2418), Offset(boxLeft + 8f, horizon - 4f), Size(3f, 16f))
-    drawRect(Color(0xFF2A2418), Offset(boxLeft + box.width - 11f, horizon - 4f), Size(3f, 16f))
-    drawRoundRect(
-        Color(0xFF1A1C22),
-        Offset(boxLeft, top),
-        box,
-        CornerRadius(5f, 5f)
-    )
-    drawRoundRect(
-        Sodium.copy(alpha = 0.7f),
-        Offset(boxLeft, top),
-        box,
-        CornerRadius(5f, 5f),
-        style = Stroke(width = 1.6f)
-    )
-    drawText(layout, topLeft = Offset(boxLeft + pad, top + 4f))
+    val padX = 12f
+    val padY = 7f
+    val box = Size(layout.size.width + padX * 2f, layout.size.height + padY * 2f)
+    val topLeft = Offset(center.x - box.width / 2f, center.y - box.height / 2f)
+    drawRoundRect(Pill, topLeft, box, CornerRadius(box.height / 2f, box.height / 2f))
+    drawText(layout, topLeft = Offset(topLeft.x + padX, topLeft.y + padY))
 }
 
 private fun DrawScope.drawCar(
@@ -464,57 +336,44 @@ private fun DrawScope.drawCar(
     thickness: Float,
     time: Float
 ) {
-    val bob = sin(time * 14f + center.x * 0.02f) * 0.8f
+    val bob = sin(time * 14f + center.x * 0.02f) * 0.6f
     translate(center.x, center.y + bob) {
         rotate(if (facingDown) 0f else 180f) {
             val body = Size(thickness, length)
             val topLeft = Offset(-body.width / 2f, -body.height / 2f)
             drawOval(
                 Color.Black.copy(alpha = 0.28f),
-                Offset(topLeft.x - 4f, topLeft.y + body.height * 0.55f),
-                Size(body.width + 8f, body.height * 0.22f)
+                Offset(topLeft.x + 2f, topLeft.y + body.height * 0.72f),
+                Size(body.width - 4f, body.height * 0.16f)
             )
-            drawRoundRect(color, topLeft, body, CornerRadius(11f, 14f))
+            drawRoundRect(color, topLeft, body, CornerRadius(body.width * 0.28f, body.width * 0.28f))
             drawRoundRect(
-                Color.White.copy(alpha = 0.10f),
-                Offset(topLeft.x + 4f, topLeft.y + 6f),
-                Size(body.width * 0.28f, body.height * 0.7f),
+                Color.White.copy(alpha = 0.14f),
+                Offset(topLeft.x + body.width * 0.18f, topLeft.y + body.height * 0.08f),
+                Size(body.width * 0.64f, body.height * 0.16f),
                 CornerRadius(6f, 6f)
             )
             drawRoundRect(
-                Color(0xFFD7ECF8).copy(alpha = 0.72f),
-                Offset(topLeft.x + 5f, topLeft.y + body.height * 0.42f),
-                Size(body.width - 10f, body.height * 0.22f),
+                Color(0xFF102033).copy(alpha = 0.82f),
+                Offset(topLeft.x + body.width * 0.16f, topLeft.y + body.height * 0.30f),
+                Size(body.width * 0.68f, body.height * 0.22f),
                 CornerRadius(5f, 5f)
             )
-            val lightY = topLeft.y + body.height - 11f
+            val lightY = topLeft.y + body.height * 0.78f
+            val lightR = body.width * 0.09f
+            drawCircle(Headlight, lightR, Offset(topLeft.x + body.width * 0.28f, lightY))
+            drawCircle(Headlight, lightR, Offset(topLeft.x + body.width * 0.72f, lightY))
             drawRoundRect(
-                Headlight,
-                Offset(topLeft.x + 6f, lightY),
-                Size(body.width - 12f, 7f),
-                CornerRadius(3f, 3f)
-            )
-            val cone = Path().apply {
-                moveTo(-body.width * 0.28f, body.height * 0.48f)
-                lineTo(-body.width * 0.72f, body.height * 0.95f)
-                lineTo(body.width * 0.72f, body.height * 0.95f)
-                lineTo(body.width * 0.28f, body.height * 0.48f)
-                close()
-            }
-            drawPath(cone, Headlight.copy(alpha = 0.10f))
-            drawRoundRect(
-                Color(0xFFB42318).copy(alpha = 0.85f),
-                Offset(topLeft.x + 7f, topLeft.y + 4f),
-                Size(body.width - 14f, 5f),
+                Color(0xFFB42318).copy(alpha = 0.9f),
+                Offset(topLeft.x + body.width * 0.22f, topLeft.y + 4f),
+                Size(body.width * 0.56f, 4f),
                 CornerRadius(2f, 2f)
             )
-            val wr = thickness * 0.15f
-            drawCircle(Color(0xFF141414), wr, Offset(topLeft.x - 1f, -length * 0.18f))
-            drawCircle(Color(0xFF141414), wr, Offset(topLeft.x + body.width + 1f, -length * 0.18f))
-            drawCircle(Color(0xFF141414), wr, Offset(topLeft.x - 1f, length * 0.18f))
-            drawCircle(Color(0xFF141414), wr, Offset(topLeft.x + body.width + 1f, length * 0.18f))
-            drawCircle(Color(0xFF6A6A6A), wr * 0.4f, Offset(topLeft.x - 1f, -length * 0.18f))
-            drawCircle(Color(0xFF6A6A6A), wr * 0.4f, Offset(topLeft.x + body.width + 1f, -length * 0.18f))
+            val wr = thickness * 0.13f
+            drawCircle(Color(0xFF141414), wr, Offset(topLeft.x - 1f, -length * 0.22f))
+            drawCircle(Color(0xFF141414), wr, Offset(topLeft.x + body.width + 1f, -length * 0.22f))
+            drawCircle(Color(0xFF141414), wr, Offset(topLeft.x - 1f, length * 0.22f))
+            drawCircle(Color(0xFF141414), wr, Offset(topLeft.x + body.width + 1f, length * 0.22f))
         }
     }
 }
@@ -568,27 +427,27 @@ private fun DrawScope.drawChicken(
                     lineTo(-w * 0.76f, h * 0.16f)
                     close()
                 }
-                drawPath(tail, PorcelainShade)
+                drawPath(tail, ChickenShade)
 
-                drawOval(PorcelainShade, Offset(-w * 0.42f, -h * 0.28f), Size(w * 0.92f, h * 0.86f))
-                drawOval(Porcelain, Offset(-w * 0.46f, -h * 0.34f), Size(w * 0.88f, h * 0.78f))
+                drawOval(ChickenShade, Offset(-w * 0.42f, -h * 0.28f), Size(w * 0.92f, h * 0.86f))
+                drawOval(ChickenWhite, Offset(-w * 0.46f, -h * 0.34f), Size(w * 0.88f, h * 0.78f))
                 drawOval(
-                    NightDeep.copy(alpha = 0.55f),
+                    Color(0xFFD5D0C8),
                     Offset(-w * 0.46f, -h * 0.34f),
                     Size(w * 0.88f, h * 0.78f),
-                    style = Stroke(width = 2.4f)
+                    style = Stroke(width = 2.2f)
                 )
 
                 val wingPhase = if (hopTilt > 0f) sin(hopTilt * PI.toFloat()) * 22f else sin(time * 3.1f) * 4f
                 rotate(wingPhase, Offset(-w * 0.02f, h * 0.02f)) {
                     drawOval(
-                        PorcelainShade,
+                        ChickenShade,
                         Offset(-w * 0.22f, -h * 0.02f),
                         Size(w * 0.46f, h * 0.36f)
                     )
                 }
 
-                drawCircle(Porcelain, sizePx * 0.20f, Offset(w * 0.22f, -h * 0.28f))
+                drawCircle(ChickenWhite, sizePx * 0.20f, Offset(w * 0.22f, -h * 0.28f))
                 drawRoundRect(Comb, Offset(w * 0.12f, -h * 0.68f), Size(w * 0.13f, h * 0.26f), CornerRadius(5f, 5f))
                 drawRoundRect(Comb, Offset(w * 0.22f, -h * 0.74f), Size(w * 0.12f, h * 0.24f), CornerRadius(5f, 5f))
                 drawRoundRect(Comb, Offset(w * 0.30f, -h * 0.60f), Size(w * 0.10f, h * 0.18f), CornerRadius(4f, 4f))
@@ -602,7 +461,6 @@ private fun DrawScope.drawChicken(
                 drawPath(beak, Beak)
                 drawCircle(Color.White, sizePx * 0.055f, Offset(w * 0.26f, -h * 0.32f))
                 drawCircle(NightDeep, sizePx * 0.028f, Offset(w * 0.28f, -h * 0.32f))
-                drawCircle(Color(0xFFFFF6C8), sizePx * 0.07f, Offset(w * 0.06f, -h * 0.02f))
                 drawCircle(Comb.copy(alpha = 0.85f), sizePx * 0.045f, Offset(w * 0.24f, -h * 0.08f))
             }
         }
