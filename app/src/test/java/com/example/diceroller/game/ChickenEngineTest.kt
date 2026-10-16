@@ -137,4 +137,29 @@ class ChickenEngineTest {
         assertEquals(RoundStatus.HIT, round.status)
         assertEquals(30, session.wallet.balance)
     }
+
+    @Test
+    fun shuffleHazardsPlacesExactDeathCountForEveryDifficulty() {
+        repeat(250) { seed ->
+            Difficulty.entries.forEach { difficulty ->
+                val hazards = shuffleHazards(difficulty.deaths, Random(seed.toLong()))
+                assertEquals(TILE_COUNT, hazards.size)
+                assertEquals(difficulty.deaths, hazards.count { it })
+            }
+        }
+    }
+
+    @Test
+    fun previewPayoutMatchesCashOutWithoutChangingState() {
+        val session = GameSession(Wallet(100))
+        val hazards = BooleanArray(20) { it >= 19 }
+        val round = session.startRound(bet = 10, difficulty = Difficulty.EASY, hazards = hazards)
+        repeat(2) { assertTrue(round.hop() is HopResult.Safe) }
+        val preview = round.previewPayout()
+        assertEquals(RoundStatus.ACTIVE, round.status)
+        assertEquals(90, session.wallet.balance)
+        val paid = round.cashOut()
+        assertEquals(paid, preview)
+        assertEquals(kotlin.math.round(10 * multiplierTable(Difficulty.EASY)[1]).toInt(), preview)
+    }
 }

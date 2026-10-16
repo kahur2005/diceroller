@@ -36,7 +36,7 @@ class CrossingUiTest {
         compose.onNodeWithTag("primary_action").performClick()
         compose.waitUntil(timeoutMillis = 8_000) {
             val text = statusText()
-            text.contains("Safe at") || text.contains("Hit by a car") || text.contains("Far side")
+            text.contains("Safe at") || text.contains("Hit by a car") || text.contains("Made it across")
         }
 
         if (statusText().contains("Safe at")) {

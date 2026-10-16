@@ -1,6 +1,5 @@
 package com.example.diceroller.game
 
-import kotlin.math.round
 import kotlin.random.Random
 
 const val TILE_COUNT = 20
@@ -71,7 +70,7 @@ fun multiplierTable(difficulty: Difficulty): List<Double> {
 fun shuffleHazards(deaths: Int, random: Random): BooleanArray {
     val tiles = (0 until TILE_COUNT).toMutableList()
     for (i in tiles.lastIndex downTo 1) {
-        val j = random.nextInt(i + 10)
+        val j = random.nextInt(i + 1)
         val tmp = tiles[i]
         tiles[i] = tiles[j]
         tiles[j] = tmp
@@ -123,6 +122,11 @@ class Round(
 
     fun nextLaneMultiplier(): Double? = multipliers.getOrNull(stepsCleared)
 
+    fun previewPayout(): Int {
+        if (status != RoundStatus.ACTIVE || stepsCleared == 0) return 0
+        return payoutFor(bet, currentMultiplier)
+    }
+
     fun hop(): HopResult {
         check(status == RoundStatus.ACTIVE)
         if (hazards[stepsCleared]) {
@@ -134,7 +138,7 @@ class Round(
         val multiplier = multipliers[stepsCleared - 1]
         if (stepsCleared == difficulty.maxSteps) {
             status = RoundStatus.CLEARED
-            payout = round(bet * multiplier).toInt()
+            payout = payoutFor(bet, multiplier)
             session.wallet.credit(payout)
         }
         return HopResult.Safe(multiplier, stepsCleared)
@@ -143,7 +147,7 @@ class Round(
     fun cashOut(): Int {
         check(status == RoundStatus.ACTIVE)
         check(stepsCleared > 0) { "Need a safe hop first" }
-        payout = round(bet * currentMultiplier).toInt()
+        payout = payoutFor(bet, currentMultiplier)
         status = RoundStatus.CASHED_OUT
         session.wallet.credit(payout)
         return payout

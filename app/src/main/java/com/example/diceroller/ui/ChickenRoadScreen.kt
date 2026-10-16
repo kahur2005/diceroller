@@ -265,6 +265,8 @@ fun ChickenRoadScreen(modifier: Modifier = Modifier) {
             locked = locked,
             canGo = !busy && !autoRunning,
             canCash = inRound && !busy && (active?.stepsCleared ?: 0) > 0,
+            cashPreview = active?.previewPayout() ?: 0,
+            nextMultiplier = active?.nextLaneMultiplier(),
             onBetChange = { bet = it.coerceAtLeast(1) },
             onDifficulty = {
                 if (!locked) {
@@ -297,6 +299,8 @@ private fun ControlTray(
     locked: Boolean,
     canGo: Boolean,
     canCash: Boolean,
+    cashPreview: Int,
+    nextMultiplier: Double?,
     onBetChange: (Int) -> Unit,
     onDifficulty: (Difficulty) -> Unit,
     onAuto: (Boolean) -> Unit,
@@ -405,7 +409,15 @@ private fun ControlTray(
                 .testTag("primary_action"),
             shape = RoundedCornerShape(12.dp)
         ) {
-            Text("Go", fontWeight = FontWeight.Bold, fontSize = 255.sp)
+            Text(
+                text = if (inRound && nextMultiplier != null) {
+                    "Go  ${formatMultiplier(nextMultiplier)}"
+                } else {
+                    "Go"
+                },
+                fontWeight = FontWeight.Bold,
+                fontSize = 18.sp
+            )
         }
 
         Spacer(Modifier.height(8.dp))
@@ -430,7 +442,15 @@ private fun ControlTray(
                 .testTag("cash_out"),
             shape = RoundedCornerShape(12.dp)
         ) {
-            Text("Cash Out", fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
+            Text(
+                text = if (cashPreview > 0) {
+                    "Cash Out  ${formatChips(cashPreview)}"
+                } else {
+                    "Cash Out"
+                },
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 16.sp
+            )
         }
     }
 }
@@ -459,7 +479,7 @@ private fun DifficultyMenu(
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Text(
-                text = difficulty.label,
+                text = "${difficulty.label}  ·  ${difficulty.deaths} cars",
                 color = if (enabled) Paper else Muted,
                 fontSize = 15.sp
             )
@@ -474,7 +494,7 @@ private fun DifficultyMenu(
                 DropdownMenuItem(
                     text = {
                         Text(
-                            text = level.label,
+                            text = "${level.label}  ·  ${level.deaths} cars",
                             color = if (level == difficulty) GoBright else Paper
                         )
                     },
@@ -538,7 +558,7 @@ private fun Coin() {
         Box(
             modifier = Modifier
                 .size(12.dp)
-                .border(1.5.dp, Ink.copy(alpha = 0.00f), CircleShape)
+                .border(1.5.dp, Ink.copy(alpha = 0.35f), CircleShape)
         )
     }
 }
