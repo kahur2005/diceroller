@@ -393,10 +393,10 @@ private fun ControlTray(
             onClick = { if (inRound) onGo() else onBet() },
             enabled = canGo,
             colors = ButtonDefaults.buttonColors(
-                containerColor = GoBright,
-                contentColor = Paper,
-                disabledContainerColor = GoBright.copy(alpha = 0.66f),
-                disabledContentColor = Paper.copy(alpha = 0.66f)
+                containerColor = Color(0xFFFFD400),
+                contentColor = Ink,
+                disabledContainerColor = Color(0xFFFFD400).copy(alpha = 0.66f),
+                disabledContentColor = Ink.copy(alpha = 0.66f)
             ),
             elevation = ButtonDefaults.buttonElevation(
                 defaultElevation = 0.dp,
